@@ -135,13 +135,14 @@ grid.arrange(p1, p2, ncol = 2)
 
 {{< include model_diagram.qmd >}}
 
-<!-- {{< include model_stan.qmd >}} -->
+{{< include model_stan.qmd >}}
 
-<!-- {{< include model_brms.qmd >}} -->
+{{< include model_brms.qmd >}}
 
 # Modeling
 
 ::::: panel-tabset
+
 ## Model 1
 
 **Phylogenetic Generalized Linear Mixed Model (PGLMM)** is the GLMM version for phylogenetic datasets. Although, in this case, it's more appropriate to call it a phylogenetic (linear) mixed model (PMM) since the output being modeled is Gaussian. Maybe we can explore more of this later.
@@ -198,6 +199,7 @@ $$\begin{gather}
 \end{gather}$$
 
 ::: panel-tabset
+
 ### Prior 1
 
 Priors:
@@ -311,6 +313,7 @@ $$\begin{gather}
 
 # loo(m01_p01, m01_p02)
 ```
+
 :::
 
 ## Model 2 (PGLMM + reparaBYM2)
@@ -332,6 +335,7 @@ $$\begin{gather}
 How is this related to phylogenetic data?
 
 ::: panel-tabset
+
 ### Prior 1
 
 ```{r}
@@ -381,7 +385,9 @@ How is this related to phylogenetic data?
 
 # loo(m04_p01, m04_p02)
 ```
+
 :::
+
 :::::
 
 # TBA Section
