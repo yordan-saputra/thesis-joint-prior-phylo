@@ -12,6 +12,4 @@
 *.blg
 *.run.xml
 
-index_files/
-
 .vscode/
