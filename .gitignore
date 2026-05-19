@@ -12,6 +12,6 @@
 *.blg
 *.run.xml
 
-PhylogeneticProject_files/
+index_files/
 
 .vscode/

@@ -28,10 +28,10 @@ Phylogenetic trees are used to represent the evolutionary history between a set 
 
 # Project Structure
 
-- Literature search on priors for phylogenetic models
-- Implement the new and existing priors in Stan
-- Run simulation studies
-- Analyse and discuss results
+-   Literature search on priors for phylogenetic models
+-   Implement the new and existing priors in Stan
+-   Run simulation studies
+-   Analyse and discuss results
 
 # Libraries & Helper Function
 
@@ -135,14 +135,13 @@ grid.arrange(p1, p2, ncol = 2)
 
 {{< include model_diagram.qmd >}}
 
-{{< include model_stan.qmd >}}
+<!-- {{< include model_stan.qmd >}} -->
 
-{{< include model_brms.qmd >}}
+<!-- {{< include model_brms.qmd >}} -->
 
 # Modeling
 
-::: {.panel-tabset}
-
+::::: panel-tabset
 ## Model 1
 
 **Phylogenetic Generalized Linear Mixed Model (PGLMM)** is the GLMM version for phylogenetic datasets. Although, in this case, it's more appropriate to call it a phylogenetic (linear) mixed model (PMM) since the output being modeled is Gaussian. Maybe we can explore more of this later.
@@ -198,8 +197,7 @@ $$\begin{gather}
   \sigma_P, \sigma_S, \sigma_R \text{ are the standard deviation parameters for } \boldsymbol{a}, \boldsymbol{s}, \boldsymbol{e}
 \end{gather}$$
 
-::: {.panel-tabset}
-
+::: panel-tabset
 ### Prior 1
 
 Priors:
@@ -245,7 +243,6 @@ $$\begin{gather}
   \end{pmatrix}\\
   \sigma_R\sim \text{Student-}t(\nu = 3, 0, 20) \\
 \end{gather}$$
-
 
 ```{r}
 # fit1 <- sampling(
@@ -314,7 +311,6 @@ $$\begin{gather}
 
 # loo(m01_p01, m01_p02)
 ```
-
 :::
 
 ## Model 2 (PGLMM + reparaBYM2)
@@ -333,10 +329,9 @@ $$\begin{gather}
   \text{where Var}(\theta_i) \approx \text{Var}(\phi_i) \approx 1
 \end{gather}$$
 
-How is this related to phylogenetic data? 
+How is this related to phylogenetic data?
 
-::: {.panel-tabset}
-
+::: panel-tabset
 ### Prior 1
 
 ```{r}
@@ -386,12 +381,8 @@ How is this related to phylogenetic data?
 
 # loo(m04_p01, m04_p02)
 ```
-
 :::
-
-:::
-
-
+:::::
 
 # TBA Section
 
