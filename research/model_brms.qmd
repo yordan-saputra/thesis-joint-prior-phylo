@@ -1,0 +1,97 @@
+::: {.panel-tabset}
+
+## Intercept-Only 
+
+```{r}
+#| warning: false
+
+fstan_intercept <- load_or_fit_stan(data, "stan_intercept", cstan_intercept)
+print(fstan_intercept, pars = c("mu", "sigma"))
+
+brms_intercept <- load_or_fit_brms(
+  model_name = "brms_intercept",
+  data = data,
+  formula = phen ~ 1,
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 50), "Intercept"),
+    prior(exponential(1), "sigma")
+  )
+)
+summary(brms_intercept)
+```
+
+## Linear Regression
+
+```{r}
+#| warning: false
+
+fstan_linear <- load_or_fit_stan(data, "stan_linear", cstan_linear)
+print(fstan_linear, pars = c("mu", "beta_b", "beta_w", "sigma"))
+
+linear_brms <- load_or_fit_brms(
+  model_name = "brms_linear",
+  data = data,
+  formula = phen ~ spec_mean_cf + within_spec_cf,
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 50), "Intercept"),
+    prior(normal(0, 10), "b", coef = "spec_mean_cf"),
+    prior(normal(0, 10), "b", coef = "within_spec_cf"),
+    prior(exponential(1), "sigma")
+  )
+)
+summary(linear_brms)
+```
+
+## MultiPhylo
+
+```{r}
+#| warning: false
+
+fstan_multiphylo <- load_or_fit_stan(data, "stan_multiphylo", cstan_multiphylo)
+print(fstan_multiphylo, pars = c("mu", "beta_b", "beta_w", "sigma_phy", "sigma_sp", "sigma"))
+
+mlevelphylo_brms <- load_or_fit_brms(
+  model_name = "brms_multiphylo",
+  data = data,
+  formula = phen ~ spec_mean_cf + within_spec_cf + (1|gr(phylo, cov = A)) + (1|species),
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 50), "Intercept"),
+    prior(normal(0, 10), "b", coef = "spec_mean_cf"),
+    prior(normal(0, 10), "b", coef = "within_spec_cf"),
+    prior(student_t(3, 0, 20), "sd", group = "phylo"),
+    prior(student_t(3, 0, 20), "sd", group = "species"),
+    prior(exponential(1), "sigma")
+  )
+)
+summary(mlevelphylo_brms)
+```
+
+## MultiPhylo (Joint)
+
+```{r}
+#| warning: false
+
+fstan_multiphylojoint <- load_or_fit_stan(data, "stan_multiphylojoint", cstan_multiphylojoint)
+print(fstan_multiphylojoint, pars = c("mu", "beta_b", "beta_w", "sigma_phy", "sigma_sp", "sigma"))
+
+# No BRMS Model
+```
+
+## BYM2 parameterization
+
+```{r}
+#| warning: false
+
+fstan_bym2 <- load_or_fit_stan(data, "stan_bym2", cstan_bym2)
+print(fstan_bym2, pars = c("mu", "beta_b", "beta_w", "sigma_t", "rho", "sigma"))
+
+# No BRMS Model
+```
+
+:::

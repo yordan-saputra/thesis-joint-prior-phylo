@@ -1,0 +1,296 @@
+::: {.panel-tabset}
+
+## Intercept-Only 
+
+```{stan output.var = "cstan_intercept"}
+data {
+  // Individual-level data
+  int<lower=0> N; // Number of observations
+  vector[N] y; // Response variable
+  vector[N] x1; // spec_mean_cf variable
+  vector[N] x2; // within_spec_cf variable
+  
+  // Group-level data
+  int<lower=0> J; // Number of groups (species)
+  array[N] int<lower=1, upper=J> group;  // Group (species) ID
+  
+  // Phylogenetic data
+  matrix[J, J] A_phylo; // phylogenetic vcv matrix
+}
+
+parameters {
+  real mu; // Population intercept
+  real<lower=0> sigma; // Residual error
+}
+
+model {
+  // Priors
+  mu ~ normal(0, 50);
+  sigma ~ exponential(1);
+  
+  // Likelihood
+  y ~ normal(mu, sigma);
+}
+
+generated quantities {
+  vector[N] y_pred; // Posterior predictions
+  
+  for (i in 1:N) {
+    y_pred[i] = normal_rng(mu, sigma);
+  }
+}
+```
+
+## Linear Regression
+
+```{stan output.var = "cstan_linear"}
+data {
+  // Individual-level data
+  int<lower=0> N; // Number of observations
+  vector[N] y; // Response variable
+  vector[N] x1; // spec_mean_cf variable
+  vector[N] x2; // within_spec_cf variable
+  
+  // Group-level data
+  int<lower=0> J; // Number of groups (species)
+  array[N] int<lower=1, upper=J> group;  // Group (species) ID
+  
+  // Phylogenetic data
+  matrix[J, J] A_phylo; // phylogenetic vcv matrix
+}
+
+parameters {
+  real mu; // Population intercept
+  real beta_b; // Slope for spec_mean_cf
+  real beta_w; // Slope for within_spec_cf
+  real<lower=0> sigma; // Residual error
+}
+
+model {
+  // Priors
+  mu ~ normal(0, 50);
+  beta_b ~ normal(0, 10);
+  beta_w ~ normal(0, 10);
+  sigma ~ exponential(1);
+  
+  // Likelihood
+  y ~ normal(mu + beta_b * x1 + beta_w * x2, sigma);
+}
+
+generated quantities {
+  vector[N] y_pred; // Posterior predictions
+  
+  for (i in 1:N) {
+    y_pred[i] = normal_rng(mu + beta_b * x1[i] + beta_w * x2[i], sigma);
+  }
+}
+```
+
+## MultiPhylo
+
+```{stan output.var = "cstan_multiphylo"}
+data {
+  // Individual-level data
+  int<lower=0> N; // Number of observations
+  vector[N] y; // Response variable
+  vector[N] x1; // spec_mean_cf variable
+  vector[N] x2; // within_spec_cf variable
+  
+  // Group-level data
+  int<lower=0> J; // Number of groups (species)
+  array[N] int<lower=1, upper=J> group;  // Group (species) ID
+  
+  // Phylogenetic data
+  matrix[J, J] A_phylo; // phylogenetic vcv matrix
+}
+
+parameters {
+  // Fixed effects
+  real mu; // Population intercept
+  real beta_b; // Slope for spec_mean_cf
+  real beta_w; // Slope for within_spec_cf
+  
+  // Variance components
+  real<lower=0> sigma_phy; // SD for phylogenetic effect
+  real<lower=0> sigma_sp; // SD of species random effects
+  vector[J] z_sp; // latent variable for species
+  
+  // Direct parameterization
+  vector[J] phy_eff; // phylogenetic effect (a)
+  
+  // Residual error
+  real<lower=0> sigma;
+}
+
+transformed parameters {
+  vector[J] sp_eff = sigma_sp * z_sp ; // species effect (s)
+}
+
+model {
+  // Priors
+  mu ~ normal(0, 50);
+  beta_b ~ normal(0, 10);
+  beta_w ~ normal(0, 10);
+  sigma_phy ~ student_t(3, 0, 20);
+  sigma_sp ~ student_t(3, 0, 20);
+  z_sp ~ normal(0, 1);
+  sigma ~ exponential(1);
+  
+  // Random effects priors
+  phy_eff ~ multi_normal(rep_vector(0, J), sigma_phy^2 * A_phylo);
+  
+  // Likelihood
+  for (i in 1:N) {
+    y[i] ~ normal(mu + beta_b * x1[i] + beta_w * x2[i] + sp_eff[group[i]] + phy_eff[group[i]], sigma);
+  }
+}
+
+generated quantities {
+  vector[N] y_pred; // Posterior predictions
+  
+  for (i in 1:N) {
+    y_pred[i] = normal_rng(mu + beta_b * x1[i] + beta_w * x2[i] + sp_eff[group[i]] + phy_eff[group[i]], sigma);
+  }
+}
+```
+
+## MultiPhylo (Joint)
+
+```{stan output.var = "cstan_multiphylojoint"}
+data {
+  // Individual-level data
+  int<lower=0> N; // Number of observations
+  vector[N] y; // Response variable
+  vector[N] x1; // spec_mean_cf variable
+  vector[N] x2; // within_spec_cf variable
+  
+  // Group-level data
+  int<lower=0> J; // Number of groups (species)
+  array[N] int<lower=1, upper=J> group;  // Group (species) ID
+  
+  // Phylogenetic data
+  matrix[J, J] A_phylo; // phylogenetic vcv matrix
+}
+
+parameters {
+  // Fixed effects
+  real mu; // Population intercept
+  real beta_b; // Slope for spec_mean_cf
+  real beta_w; // Slope for within_spec_cf
+  
+  // Variance components
+  real<lower=0> sigma_phy; // SD for phylogenetic effect
+  real<lower=0> sigma_sp; // SD of species random effects
+  vector[J] z_sp; // latent variable for species
+  
+  // Direct parameterization
+  vector[J] phy_eff; // phylogenetic effect (a)
+  
+  // Residual error
+  real<lower=0> sigma;
+}
+
+transformed parameters {
+  vector[J] sp_eff = sigma_sp * z_sp; // species effect (s)
+  row_vector[2] sigma_vec = [sigma_phy, sigma_sp];
+}
+
+model {
+  // Priors
+  mu ~ normal(0, 50);
+  beta_b ~ normal(0, 10);
+  beta_w ~ normal(0, 10);
+  
+  sigma_vec ~ multi_student_t(3, rep_vector(0, 2), [[20, 5], [5, 20]]);
+  z_sp ~ normal(0, 1);
+  sigma ~ exponential(1);
+  
+  // Random effects priors
+  phy_eff ~ multi_normal(rep_vector(0, J), sigma_phy^2 * A_phylo);
+  
+  // Likelihood
+  for (i in 1:N) {
+    y[i] ~ normal(mu + beta_b * x1[i] + beta_w * x2[i] + sp_eff[group[i]] + phy_eff[group[i]], sigma);
+  }
+}
+
+generated quantities {
+  vector[N] y_pred; // Posterior predictions
+  
+  for (i in 1:N) {
+    y_pred[i] = normal_rng(mu + beta_b * x1[i] + beta_w * x2[i] + sp_eff[group[i]] + phy_eff[group[i]], sigma);
+  }
+}
+```
+
+## BYM2 parameterization
+
+```{stan output.var = "cstan_bym2"}
+data {
+  // Individual-level data
+  int<lower=0> N; // Number of observations
+  vector[N] y; // Response variable
+  vector[N] x1; // spec_mean_cf variable
+  vector[N] x2; // within_spec_cf variable
+  
+  // Group-level data
+  int<lower=0> J; // Number of groups (species)
+  array[N] int<lower=1, upper=J> group;  // Group (species) ID
+  
+  // Phylogenetic data
+  matrix[J, J] A_phylo; // phylogenetic vcv matrix
+}
+
+parameters {
+  // Fixed effects
+  real mu; // Population intercept
+  real beta_b; // Slope for spec_mean_cf
+  real beta_w; // Slope for within_spec_cf
+  
+  // Variance components
+  real<lower=0> sigma_t; // SD of combined components
+  real<lower=0, upper=1> rho; // proportion effect variance
+  vector[J] phy_eff; // phylogenetic effect (a)
+  vector[J] sp_eff; // species effect (s)
+  
+  // Residual error
+  real<lower=0> sigma;
+}
+
+transformed parameters {
+  vector[J] convolved_re = sqrt(1 - rho) * phy_eff + sqrt(rho) * sp_eff;
+}
+
+model {
+  // Priors
+  mu ~ normal(0, 50);
+  beta_b ~ normal(0, 10);
+  beta_w ~ normal(0, 10);
+  
+  rho ~ beta(0.5, 0.5);
+  sigma_t ~ normal(0, 1);
+  sigma ~ exponential(1);
+  
+  // Random effects priors
+  phy_eff ~ multi_normal(rep_vector(0, J), A_phylo);
+  sp_eff ~ normal(0, 1);
+  
+  // soft sum-to-zero constraint on phylo effects
+  sum(phy_eff) ~ normal(0, 0.001 * J);
+  
+  // Likelihood
+  for (i in 1:N) {
+    y[i] ~ normal(mu + beta_b * x1[i] + beta_w * x2[i] + sigma_t * convolved_re[group[i]], sigma);
+  }
+}
+
+generated quantities {
+  vector[N] y_pred; // Posterior predictions
+  
+  for (i in 1:N) {
+    y_pred[i] = normal_rng(mu + beta_b * x1[i] + beta_w * x2[i] + sigma_t * convolved_re[group[i]], sigma);
+  }
+}
+```
+
+:::
