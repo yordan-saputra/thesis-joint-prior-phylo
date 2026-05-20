@@ -8,7 +8,16 @@
 #| warning: false
 
 fstan_intercept <- load_or_fit_stan(data, "stan_intercept", cstan_intercept)
-print(fstan_intercept, pars = c("mu", "sigma"))
+fstan_intercept_summary <- fstan_intercept$summary(variables = c("mu", "sigma"))
+fstan_intercept_time <- fstan_intercept$time()
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+kable(fstan_intercept_summary)
+kable(fstan_intercept_time$chains)
 ```
 
 ### brms
@@ -38,7 +47,16 @@ summary(brms_intercept)
 #| warning: false
 
 fstan_linear <- load_or_fit_stan(data, "stan_linear", cstan_linear)
-print(fstan_linear, pars = c("mu", "beta_b", "beta_w", "sigma"))
+fstan_linear_summary <- fstan_linear$summary(variables = c("mu", "beta_b", "beta_w", "sigma"))
+fstan_linear_time <- fstan_linear$time()
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+kable(fstan_linear_summary)
+kable(fstan_linear_time$chains)
 ```
 
 ### brms
@@ -46,7 +64,7 @@ print(fstan_linear, pars = c("mu", "beta_b", "beta_w", "sigma"))
 ```{r}
 #| warning: false
 
-linear_brms <- load_or_fit_brms(
+brms_linear <- load_or_fit_brms(
   model_name = "brms_linear",
   data = data,
   formula = phen ~ spec_mean_cf + within_spec_cf,
@@ -59,7 +77,7 @@ linear_brms <- load_or_fit_brms(
     prior(student_t(3, 0, 20), "sigma")
   )
 )
-summary(linear_brms)
+summary(brms_linear)
 ```
 
 ## MultiPhylo
@@ -70,7 +88,16 @@ summary(linear_brms)
 #| warning: false
 
 fstan_multiphylo <- load_or_fit_stan(data, "stan_multiphylo", cstan_multiphylo)
-print(fstan_multiphylo, pars = c("mu", "beta_b", "beta_w", "sigma_phy", "sigma_sp", "sigma"))
+fstan_multiphylo_summary <- fstan_multiphylo$summary(variables = c("mu", "beta_b", "beta_w", "sigma_phy", "sigma_sp", "sigma"))
+fstan_multiphylo_time <- fstan_multiphylo$time()
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+kable(fstan_multiphylo_summary)
+kable(fstan_multiphylo_time$chains)
 ```
 
 ### brms
@@ -78,7 +105,7 @@ print(fstan_multiphylo, pars = c("mu", "beta_b", "beta_w", "sigma_phy", "sigma_s
 ```{r}
 #| warning: false
 
-mlevelphylo_brms <- load_or_fit_brms(
+brms_multiphylo <- load_or_fit_brms(
   model_name = "brms_multiphylo",
   data = data,
   formula = phen ~ spec_mean_cf + within_spec_cf + (1|gr(phylo, cov = A)) + (1|species),
@@ -93,10 +120,10 @@ mlevelphylo_brms <- load_or_fit_brms(
     prior(student_t(3, 0, 20), "sigma")
   )
 )
-summary(mlevelphylo_brms)
+summary(brms_multiphylo)
 ```
 
-## BYM2 parameterization
+## BYM2Params
 
 ### Stan
 
@@ -104,7 +131,16 @@ summary(mlevelphylo_brms)
 #| warning: false
 
 fstan_bym2 <- load_or_fit_stan(data, "stan_bym2", cstan_bym2)
-print(fstan_bym2, pars = c("mu", "beta_b", "beta_w", "sigma_t", "rho", "sigma"))
+fstan_bym2_summary <- fstan_bym2$summary(variables = c("mu", "beta_b", "beta_w", "sigma_t", "rho", "sigma", "sigma_phy", "sigma_sp"))
+fstan_bym2_time <- fstan_bym2$time()
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+kable(fstan_bym2_summary)
+kable(fstan_bym2_time$chains)
 ```
 
 ### brms

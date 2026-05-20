@@ -77,7 +77,7 @@
 \end{tikzpicture}
 ```
 
-## BYM2 parameterization
+## BYM2Params
 
 ```{.tikz}
 \begin{tikzpicture}[scale=2, font=\Large]

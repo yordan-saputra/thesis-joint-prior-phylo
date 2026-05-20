@@ -41,11 +41,20 @@ Phylogenetic trees are used to represent the evolutionary history between a set 
 
 library(ape)
 library(brms)
+library(cmdstanr)
 library(corrplot)
 library(ggplot2)
 library(ggplotify)
 library(gridExtra)
+library(knitr)
+library(posterior)
 library(rstan)
+
+# check_cmdstan_toolchain()
+# install_cmdstan(cores = 2)
+
+SEED = 67
+set.seed(67)
 
 load_or_fit_brms <- function (data, model_name, formula, family, data2, prior, replace = FALSE) {
   modelpath <- file.path(getwd(), 'PhyloModel', paste0(model_name, '.rds'))
@@ -53,11 +62,13 @@ load_or_fit_brms <- function (data, model_name, formula, family, data2, prior, r
   if (file.exists(modelpath) && !replace) {
     model <- readRDS(modelpath)
   } else {
+    file.remove(modelpath)
     model <- brm(
       formula, data = data, family = family, 
       data2 = data2, prior = prior, 
       refresh = 0, silent = 2, 
-      control = list(adapt_delta = 0.95)
+      control = list(adapt_delta = 0.95),
+      seed = SEED
     )
     saveRDS(model, modelpath)
   }
@@ -68,25 +79,29 @@ load_or_fit_brms <- function (data, model_name, formula, family, data2, prior, r
 load_or_fit_stan <- function (data, model_name, stan_model, replace = FALSE) {
   modelpath <- file.path(getwd(), 'PhyloModel', paste0(model_name, '.rds'))
   stanpath <- file.path(getwd(), 'PhyloModel', paste0(model_name, '.stan'))
+  exepath <- file.path(getwd(), 'PhyloModel', paste0(model_name, '.exe'))
   
   if (file.exists(modelpath) && !replace) {
     model <- readRDS(modelpath)
   } else {
-    # writeLines(stan_model@model_code[1], stanpath)
-    data_list <- list(
-      N = nrow(data), y = data$phen, 
-      x1 = data$spec_mean_cf, x2 = data$within_spec_cf,
-      J = length(unique(data$species)),
-      group = as.numeric(factor(data$species)),
-      A_phylo = A
+    file.remove(c(modelpath, stanpath, exepath))
+    writeLines(stan_model@model_code[1], stanpath)
+    stan_model <- cmdstan_model(stanpath)
+    
+    model <- stan_model$sample(
+      data = list(
+        N = nrow(data), y = data$phen,
+        x1 = data$spec_mean_cf, x2 = data$within_spec_cf,
+        J = length(unique(data$species)),
+        group = as.numeric(factor(data$species)),
+        A_phylo = A
+      ),
+      chains = 4, parallel_chains = 4,
+      iter_warmup = 1000, iter_sampling = 1000,
+      adapt_delta = 0.95, max_treedepth = 12,
+      seed = SEED,
     )
-    model <- sampling(
-      stan_model, data = data_list, 
-      chains = 4, warmup = 1000, iter = 2000,
-      cores = 4, seed = 67,
-      control = list(adapt_delta = 0.95, max_treedepth = 12)
-    )
-    saveRDS(model, modelpath)
+    model$save_object(file = modelpath)
   }
   
   return(model)
@@ -99,8 +114,6 @@ For now, let's use the subset of the data for faster fitting.
 
 ```{r}
 #| warning: false
-
-set.seed(67)
 
 phylo <- ape::read.nexus("https://paul-buerkner.github.io/data/phylo.nex")
 data <- read.table("https://paul-buerkner.github.io/data/data_repeat.txt", header = TRUE)
@@ -139,259 +152,39 @@ grid.arrange(p1, p2, ncol = 2)
 
 {{< include model_brms.qmd >}}
 
-# Modeling
-
-::::: panel-tabset
-
-## Model 1
-
-**Phylogenetic Generalized Linear Mixed Model (PGLMM)** is the GLMM version for phylogenetic datasets. Although, in this case, it's more appropriate to call it a phylogenetic (linear) mixed model (PMM) since the output being modeled is Gaussian. Maybe we can explore more of this later.
-
-Note: The notation used here is $\mathcal{N}(\mu,\sigma)$, where $\sigma$ is the standard deviation, not variance.
-
-$$\begin{gather}
-  \boldsymbol{y} = \mu + \beta_B\ \bar{\boldsymbol{x}} + \beta_W\ (\boldsymbol{x} - \bar{\boldsymbol{x}}) + \boldsymbol{a} + \boldsymbol{s} + \boldsymbol{e} \\
-  \boldsymbol{a} \sim \mathcal{N}\left(\boldsymbol{0}, \sigma_P\boldsymbol{L}\right),\quad \boldsymbol{\Sigma} = \boldsymbol{L}\boldsymbol{L}^\top \\
-  \boldsymbol{s} \sim \mathcal{N}\left(\boldsymbol{0}, \sigma_S\boldsymbol{I}\right),\quad \boldsymbol{e} \sim \mathcal{N}\left(\boldsymbol{0}, \sigma_R\boldsymbol{I}\right) \\
-  \boldsymbol{y} \sim \mathcal{N}\left(\mu + \beta \boldsymbol{x}, \boldsymbol{\Lambda} \right),\quad \sigma_p^2\boldsymbol{\Sigma} + \sigma_R^2\boldsymbol{I} = \boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top \\
-\end{gather}$$
-
-For clarification, consider a dataset of 15 different species where each species is measured 5 times (of course, the number of measurements for each species can differ; the example below is just for easier illustration):
-
-$$\begin{gather}
-  \begin{bmatrix}
-    y_{1,1} \\ y_{1,2} \\ \vdots \\ y_{i,j} \\ \vdots \\ y_{15,4} \\ y_{15,5} \\
-  \end{bmatrix} = \mu + \beta_B 
-  \begin{bmatrix}
-    x_{1} \\ x_{1} \\ \vdots \\ x_{i} \\ \vdots \\ x_{15} \\ x_{15} \\
-  \end{bmatrix} + \beta_W 
-  \begin{bmatrix}
-    x_{1,1} - x_1 \\ x_{1,2} - x_1 \\ \vdots \\ x_{i,j} - x_i \\ \vdots \\ x_{15,4} - x_{15} \\ x_{15,5} - x_{15} \\
-  \end{bmatrix} +
-  \begin{bmatrix}
-    a_{1} \\ a_{1} \\ \vdots \\ a_{i} \\ \vdots \\ a_{15} \\ a_{15} \\
-  \end{bmatrix} + 
-  \begin{bmatrix}
-    s_{1} \\ s_{1} \\ \vdots \\ s_{i} \\ \vdots \\ s_{15} \\ s_{15} \\
-  \end{bmatrix} + 
-  \begin{bmatrix}
-    e_{1,1} \\ e_{1,2} \\ \vdots \\ e_{i,j} \\ \vdots \\ e_{15,4} \\ e_{15,5} \\
-  \end{bmatrix}
-\end{gather}$$
-
-where:
-
-$$\begin{gather}
-  \boldsymbol{y} \text{ is the phenotype data of several species, for example, the body size of the species} \\
-  y_{i,j} \text{ is the phenotype data (body size) of individual } j \text{ belonging to species } i \\ \\
-  \boldsymbol{x} \text{ is the co-factor of interest, for example, the temperature of the environment} \\ 
-  x_{i,j} \text{ is the co-factor (environment temperature) of individual } j \text{ belonging to species } i \\
-  x_i = \frac{1}{J_i}\sum_{i=1}^{J_i} x_{i,j} \text{ is the mean co-factor of interest of species } i \\ 
-  J_i \text{ is the number of individuals in species } i \\ \\
-  \boldsymbol{a} \text{ is the phylogenetic random effect} \\ 
-  a_i \text{ is the phylogenetic random effect of species } i \\ \\
-  \boldsymbol{s} \text{ is the multiple measurement effect / non-phylogenetic species-specific effect} \\ 
-  s_i \text{ is the multiple measurement effect of species } i \\ \\
-  \boldsymbol{e} \text{ is the residual error} \\
-  e_{i,j} \text{ is the residual error of individual } j \text{ belonging to species } i \\ \\
-  \mu, \beta_B, \beta_W \text{ are the (1) intercept, (2) slope between species, and (3) slope within species for co-factor } \boldsymbol{x} \\
-  \sigma_P, \sigma_S, \sigma_R \text{ are the standard deviation parameters for } \boldsymbol{a}, \boldsymbol{s}, \boldsymbol{e}
-\end{gather}$$
-
-::: panel-tabset
-
-### Prior 1
-
-Priors:
-
-$$\begin{gather}
-   \mu \sim \mathcal{N}(0, 50)\quad \beta_B, \beta_W \sim \mathcal{N}(0, 10) \\
-   \sigma_P, \sigma_S, \sigma_R\sim \text{Student-}t(\nu = 3, 0, 20) \\
-\end{gather}$$
+# MultiPhylo vs. BYM2Params
 
 ```{r}
+#| echo: false
 #| warning: false
 
-# m01_p01 <- load_or_fit_brms(
-#   model_name = 'model_01_prior_01',
-#   data = data,
-#   formula = phen ~ spec_mean_cf + within_spec_cf + (1|gr(phylo, cov = A)) + (1|species),
-#   family = gaussian(),
-#   data2 = list(A = A),
-#   prior = c(
-#     prior(normal(0, 50), "Intercept"),
-#     prior(normal(0, 10), "b", coef = "spec_mean_cf"),
-#     prior(normal(0, 10), "b", coef = "within_spec_cf"),
-#     prior(student_t(3, 0, 20), "sd", group = "phylo"),
-#     prior(student_t(3, 0, 20), "sd", group = "species"),
-#     prior(student_t(3, 0, 20), "sigma")
-#   )
-# )
-# 
-# summary(m01_p01)
-```
+# var
+mp_essb_phy = subset(fstan_multiphylo_summary, variable == "sigma_phy")$ess_bulk / fstan_multiphylo_time$total
+mp_esst_phy = subset(fstan_multiphylo_summary, variable == "sigma_phy")$ess_tail / fstan_multiphylo_time$total
+mp_essb_sp = subset(fstan_multiphylo_summary, variable == "sigma_sp")$ess_bulk / fstan_multiphylo_time$total
+mp_esst_sp = subset(fstan_multiphylo_summary, variable == "sigma_sp")$ess_tail / fstan_multiphylo_time$total
+bym2_essb_phy = subset(fstan_bym2_summary, variable == "sigma_phy")$ess_bulk / fstan_bym2_time$total
+bym2_esst_phy = subset(fstan_bym2_summary, variable == "sigma_phy")$ess_tail / fstan_bym2_time$total
+bym2_essb_sp = subset(fstan_bym2_summary, variable == "sigma_sp")$ess_bulk / fstan_bym2_time$total
+bym2_esst_sp = subset(fstan_bym2_summary, variable == "sigma_sp")$ess_tail / fstan_bym2_time$total
 
-### Prior 2
-
-Priors:
-
-$$\begin{gather}
-  \mu \sim \mathcal{N}(0, 50)\quad \beta_B, \beta_W \sim \mathcal{N}(0, 10) \\
-  \begin{pmatrix} \sigma_P \\ \sigma_S \\ \end{pmatrix} \sim 
-  \text{Student-}t\begin{pmatrix}
-    \nu = 3,
-    \begin{pmatrix}0 \\ 0 \\ \end{pmatrix},
-    \begin{pmatrix} 20 & 5 \\ 5 & 20 \\ \end{pmatrix}
-  \end{pmatrix}\\
-  \sigma_R\sim \text{Student-}t(\nu = 3, 0, 20) \\
-\end{gather}$$
-
-```{r}
-# fit1 <- sampling(
-#   compiled_model,                # Stan program object from previous chunk
-#   data = data_list,       # named list of data
-#   chains = 4,             # number of Markov chains
-#   warmup = 1000,          # number of warmup iterations per chain
-#   iter = 2000,            # total number of iterations per chain
-#   cores = 4,              # number of cores (could use one per chain)
-#   seed = 67
-# )
-# 
-# print(fit1, pars = c("mu", "sigma"))
+ess_per_sec <- data.frame(
+  variable = c("sigma_phy", "sigma_sp"),
+  multiphylo_bulk = c(mp_essb_phy, mp_essb_sp),
+  multiphylo_tail = c(mp_esst_phy, mp_esst_sp),
+  bym2params_bulk = c(bym2_essb_phy, bym2_essb_sp),
+  bym2params_tail = c(bym2_esst_phy, bym2_esst_sp)
+)
 ```
 
 ```{r}
+#| echo: false
 #| warning: false
 
-# # Example data (using mtcars$mpg)
-# data_list <- list(
-#   N = 10,
-#   y = mtcars$mpg[1:10]
-# )
-# 
-# # Compile and fit the model
-# fit <- stan(
-#   file = "PhyloModel/intercept_only.stan",
-#   data = data_list,
-#   iter = 2000,           # Total iterations per chain
-#   warmup = 1000,         # Burn-in iterations
-#   chains = 4,            # Number of Markov chains
-#   cores = 4,             # Parallel cores
-#   seed = 67             # Reproducibility
-# )
-# 
-# # Check results
-# print(fit, pars = c("mu", "sigma"))
+kable(ess_per_sec)
 ```
 
-```{r}
-#| warning: false
+# Scratch Paper
 
-# sdata1 <- standata(m01_p01)
-# str(sdata1)
 
-# m01_p02 <- load_or_fit_brms(
-#   model_name = 'model_01_prior_02',
-#   data = data_subset, 
-#   formula = phen ~ cofactor + (1|gr(phylo, cov = A)),
-#   family = gaussian(),
-#   data2 = list(A = A),
-#   prior = c(
-#     HOW?
-#     prior(student_t(3, 0, 20), "sd"),
-#     prior(student_t(3, 0, 20), "sigma")
-#   )
-# )
-# 
-# summary(m01_p02)
-```
 
-### Comparison
-
-```{r}
-#| warning: false
-
-# loo(m01_p01, m01_p02)
-```
-
-:::
-
-## Model 2 (PGLMM + reparaBYM2)
-
-**Besag York Mollié (BYM)** model includes both an ICAR component for spatial smoothing and an ordinary random-effects component for non-spatial heterogeneity.
-
-$$\begin{gather}
-  Y_i\ |\ \psi_i \sim Poisson\left(E_i e^{\psi_i}\right) \\
-  \boldsymbol{\psi} = \boldsymbol{x}\beta + \boldsymbol{\theta} + \boldsymbol{\phi}
-\end{gather}$$
-
-The problem with this model is that fitting a model which includes both an ordinary random effects component $\boldsymbol{\theta}$ and a spatial ICAR component $\boldsymbol{\phi}$ is difficult because either component can account for most or all of the individual-level variance. To handle this, the BYM2 model has been proposed, which places a single precision (scale) parameter on the combined components and a mixing parameter for the amount of spatial versus non-spatial variation.
-
-$$\begin{gather}
-  \boldsymbol{\theta} + \boldsymbol{\phi} = \sigma\left(\sqrt{1-\rho}\ \boldsymbol{\theta}^* + \sqrt{\rho}\ \boldsymbol{\phi}^* \right) \\
-  \text{where Var}(\theta_i) \approx \text{Var}(\phi_i) \approx 1
-\end{gather}$$
-
-How is this related to phylogenetic data?
-
-::: panel-tabset
-
-### Prior 1
-
-```{r}
-#| warning: false
-
-# m04_p01 <- load_or_fit_brms(
-#   model_name = 'model_04_prior_01',
-#   data = data_subset,
-#   formula = phen ~ cofactor + car(W, type = "bym2"),
-#   family = gaussian(),
-#   data2 = list(W = W),
-#   prior = c(
-#     prior(normal(0, 10), "b"),
-#     prior(normal(0, 50), "Intercept"),
-#     prior(beta(0.5, 0.5), "rhocar"),
-#     prior(student_t(3, 0, 20), "sdcar"),
-#     prior(student_t(3, 0, 20), "sigma")
-#   )
-# )
-# 
-# summary(m04_p01)
-```
-
-### Prior 2
-
-```{r}
-#| warning: false
-
-# m04_p02 <- load_or_fit_brms(
-#   model_name = 'model_04_prior_02',
-#   data = data_subset,
-#   formula = phen ~ cofactor + car(W, type = "bym2"),
-#   family = gaussian(),
-#   data2 = list(W = W),
-#   prior = c(
-#     HOW
-#   )
-# )
-# 
-# summary(m04_p02)
-```
-
-### Comparison
-
-```{r}
-#| warning: false
-
-# loo(m04_p01, m04_p02)
-```
-
-:::
-
-:::::
-
-# TBA Section
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.

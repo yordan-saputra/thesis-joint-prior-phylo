@@ -3,6 +3,8 @@
 ## Intercept-Only 
 
 ```{stan output.var = "cstan_intercept"}
+#| eval: false
+
 data {
   // Individual-level data
   int<lower=0> N; // Number of observations
@@ -44,6 +46,8 @@ generated quantities {
 ## Linear Regression
 
 ```{stan output.var = "cstan_linear"}
+#| eval: false
+
 data {
   // Individual-level data
   int<lower=0> N; // Number of observations
@@ -89,6 +93,8 @@ generated quantities {
 ## MultiPhylo
 
 ```{stan output.var = "cstan_multiphylo"}
+#| eval: false
+
 data {
   // Individual-level data
   int<lower=0> N; // Number of observations
@@ -157,9 +163,11 @@ generated quantities {
 }
 ```
 
-## BYM2 parameterization
+## BYM2Params
 
 ```{stan output.var = "cstan_bym2"}
+#| eval: false
+
 data {
   // Individual-level data
   int<lower=0> N; // Number of observations
@@ -225,6 +233,9 @@ generated quantities {
   for (i in 1:N) {
     y_pred[i] = normal_rng(mu + beta_b * x1[i] + beta_w * x2[i] + sp_eff[group[i]] + phy_eff[group[i]], sigma);
   }
+  
+  real sigma_phy = sigma_t * sqrt(1 - rho);
+  real sigma_sp = sigma_t * sqrt(rho);
 }
 ```
 
