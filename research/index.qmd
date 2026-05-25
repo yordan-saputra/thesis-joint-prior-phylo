@@ -56,8 +56,10 @@ library(rstan)
 SEED = 67
 set.seed(67)
 
+folder_name = "PhyloModel"
+
 load_or_fit_brms <- function (data, model_name, formula, family, data2, prior, replace = FALSE) {
-  modelpath <- file.path(getwd(), 'PhyloModel', paste0(model_name, '.rds'))
+  modelpath <- file.path(getwd(), folder_name, paste0(model_name, '.rds'))
   
   if (file.exists(modelpath) && !replace) {
     model <- readRDS(modelpath)
@@ -77,9 +79,9 @@ load_or_fit_brms <- function (data, model_name, formula, family, data2, prior, r
 }
 
 load_or_fit_stan <- function (data, model_name, stan_model, replace = FALSE) {
-  modelpath <- file.path(getwd(), 'PhyloModel', paste0(model_name, '.rds'))
-  stanpath <- file.path(getwd(), 'PhyloModel', paste0(model_name, '.stan'))
-  exepath <- file.path(getwd(), 'PhyloModel', paste0(model_name, '.exe'))
+  modelpath <- file.path(getwd(), folder_name, paste0(model_name, '.rds'))
+  stanpath <- file.path(getwd(), folder_name, paste0(model_name, '.stan'))
+  exepath <- file.path(getwd(), folder_name, paste0(model_name, '.exe'))
   
   if (file.exists(modelpath) && !replace) {
     model <- readRDS(modelpath)

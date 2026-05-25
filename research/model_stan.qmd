@@ -183,6 +183,10 @@ data {
   matrix[J, J] A_phylo; // phylogenetic vcv matrix
 }
 
+transformed data {
+  matrix[J, J] L_phylo = cholesky_decompose(A_phylo);
+}
+
 parameters {
   // Fixed effects
   real mu; // Population intercept
@@ -202,7 +206,7 @@ parameters {
 }
 
 transformed parameters {
-  vector[J] phy_eff = sigma_t * sqrt(1 - rho) * (cholesky_decompose(A_phylo) * phy_eff_z);
+  vector[J] phy_eff = sigma_t * sqrt(1 - rho) * (L_phylo * phy_eff_z);
   vector[J] sp_eff = sigma_t * sqrt(rho) * sp_eff_z;
 }
 
